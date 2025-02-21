@@ -2,7 +2,7 @@
 	"name": "DevDock",
 	"displayName": "DevDock",
 	"description": "DevDock is a VS Code extension for managing Docker-based development environments.",
-	"publisher": "h001",
+	"publisher": "hwan001",
 	"license": "Apache-2.0",
 	"icon": "images/icon.png",
 	"version": "0.0.1",
@@ -87,7 +87,8 @@
 		"watch": "tsc -watch -p ./",
 		"pretest": "npm run compile && npm run lint",
 		"lint": "eslint src",
-		"test": "vscode-test"
+		"test": "vscode-test",
+		"addlicense": "addlicense -c 'hwan001' -l apache $(find src -type f -name '*.ts')"
 	},
 	"devDependencies": {
 		"@types/vscode": "^1.97.0",
