@@ -1,0 +1,103 @@
+{
+	"name": "DevDock",
+	"displayName": "DevDock",
+	"description": "DevDock is a VS Code extension for managing Docker-based development environments.",
+	"publisher": "h001",
+	"license": "Apache-2.0",
+	"icon": "images/icon.png",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.97.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/hwan001/DevDock.git"
+	},
+	"categories": [
+		"Docker",
+		"Development Environment"
+	],
+	"activationEvents": [
+		"onCommand:devdock.run",
+		"onCommand:devdock.clean",
+		"onCommand:devdock.openConfig"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "DevDock Settings"
+		},
+		"commands": [
+			{
+				"command": "grainbox.build",
+				"title": "Build Image"
+			},
+			{
+				"command": "devdock.run",
+				"title": "Run"
+			},
+			{
+				"command": "devdock.clean",
+				"title": "Clean"
+			},
+			{
+				"command": "devdock.logs",
+				"title": "logs"
+			},
+			{
+				"command": "devdock.openConfig",
+				"title": "Open Config"
+			},
+			{
+				"command": "devdock.check",
+				"title": "Check"
+			}
+		],
+		"keybindings": [
+			{
+				"key": "cmd+shift+alt+r",
+				"command": "devdock.run",
+				"when": "editorTextFocus"
+			},
+			{
+				"key": "cmd+shift+alt+c",
+				"command": "devdock.clean",
+				"when": "editorTextFocus"
+			},
+			{
+				"key": "cmd+shift+alt+l",
+				"command": "devdock.logs",
+				"when": "editorTextFocus"
+			},
+			{
+				"key": "cmd+shift+alt+o",
+				"command": "devdock.openConfig",
+				"when": "editorTextFocus"
+			},
+			{
+				"key": "cmd+shift+alt+e",
+				"command": "devdock.check",
+				"when": "editorTextFocus"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile && npm run lint",
+		"lint": "eslint src",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.97.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "20.x",
+		"@typescript-eslint/eslint-plugin": "^8.17.0",
+		"@typescript-eslint/parser": "^8.17.0",
+		"eslint": "^9.16.0",
+		"typescript": "^5.7.2",
+		"@vscode/test-cli": "^0.0.10",
+		"@vscode/test-electron": "^2.4.1"
+	}
+}

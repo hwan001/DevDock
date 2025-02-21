@@ -1,0 +1,7 @@
+{
+  "volumes": {
+    "/data": "/app/data",
+    "/tmp": "/app/tmp",
+    "/tmp2": "/app/tmp2"
+  }
+}
