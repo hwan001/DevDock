@@ -50,44 +50,7 @@ export const DockerCommands = {
 	removeContainerById: (containerId: string) => `docker rm -f ${containerId}`,
 };
 
-export async function executeDockerCommandWithStream(
-	command: string
-): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const [cmd, ...args] = command.split(" ");
-		const process = spawn(cmd, args);
-
-		process.stdout.on("data", (data) => {
-			console.log(data.toString());
-		});
-
-		process.stderr.on("data", (data) => {
-			console.error(data.toString());
-		});
-
-		process.on("close", (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`Command failed with exit code ${code}`));
-			}
-		});
-	});
-}
-
-export async function executeDockerCommand(command: string): Promise<string> {
-	return new Promise((resolve, reject) => {
-		exec(command, (error, stdout, stderr) => {
-			if (error) {
-				reject(stderr || error.message);
-				return;
-			}
-			resolve(stdout.trim());
-		});
-	});
-}
-
-export async function oneRun(language: string): Promise<void> {
+export async function run(language: string): Promise<void> {
 	if (!(language in DEFAULT_CONFIG.dockerTemplates)) {
 		throw new Error(`Unsupported language: ${language}`);
 	}
@@ -106,7 +69,6 @@ export async function oneRun(language: string): Promise<void> {
 	const dockerFilePath = `${activeFilePath}/${language}.Dockerfile`;
 	const exec = require("child_process").execSync;
 
-	// 미사용 컨테이너 제거
 	const containers: string[] = exec(
 		DockerCommands.removeContainers(containerName)
 	)
@@ -119,7 +81,6 @@ export async function oneRun(language: string): Promise<void> {
 		}
 	});
 
-	// 기존 빌드 상태 확인
 	if (buildStatus.get(imageName)) {
 		VscodeUtils.alertMessage({
 			type: "warn",
@@ -130,7 +91,6 @@ export async function oneRun(language: string): Promise<void> {
 	buildStatus.set(imageName, true);
 
 	try {
-		// dockerfile이 존재하지 않으면 경고 문구 띄운 후 기본 템플릿으로 파일 생성
 		const dockerFileExist = await ConfigUtils.doesFileExist(dockerFilePath);
 		if (!dockerFileExist) {
 			VscodeUtils.alertMessage({
@@ -140,15 +100,11 @@ export async function oneRun(language: string): Promise<void> {
 			ConfigUtils.makeDockerfile(language);
 		}
 
-		// 이미지 빌드 명령어 추가
 		Commands.push(
 			`docker build --no-cache -f ${dockerFilePath} -t ${imageName} .`
 		);
 
-		// 도커파일 내용에 expose 가 있으면 포트 추출 후 맵핑할 옵션 생성
 		portOption = await mapDockerPorts(dockerFilePath);
-
-		// volume 키워드가 지정되어 있으면 파싱 후 마운트 옵션 생성
         volumeOption = await mapDockerVolumes(dockerFilePath);
         
 		Commands.push(
@@ -164,151 +120,16 @@ export async function oneRun(language: string): Promise<void> {
 	}
 }
 
-// ---
-
 export async function logs(language: string): Promise<void> {
-	if (!(language in DEFAULT_CONFIG.dockerTemplates)) {
-		throw new Error(`Unsupported language: ${language}`);
-	}
-
-	const activeFilePath = ConfigUtils.getActiveFilePath();
-	if (!activeFilePath) {
-		throw new Error("Unable to determine active file path.");
-	}
-
 	let Commands: string[] = [];
 	const containerName = `${language}-dev-container`;
 
 	try {
-		Commands.push(`docker logs ${containerName}`);
+		Commands.push(`docker logs -f ${containerName}`);
 		TerminalUtils.runMultilineCommandsOnTerminal(containerName, Commands);
 	} catch (error) {
 		throw error;
     }
-}
-
-export async function buildImage(language: string): Promise<void> {
-	if (!(language in baseImages)) {
-		throw new Error(`Unsupported language: ${language}`);
-	}
-
-	const rootPath = ConfigUtils.getRootPath();
-	if (!rootPath) {
-		throw new Error("Unable to determine root path.");
-	}
-
-	const imageName = `${language}-dev-image:latest`;
-	const containerName = `${language}-dev-container`;
-	const dockerFilePath = `${rootPath}/${language}.Dockerfile`;
-
-	if (buildStatus.get(imageName)) {
-		console.log(`이미 ${imageName} 빌드 작업이 진행 중입니다.`);
-		return;
-	}
-
-	buildStatus.set(imageName, true);
-
-	try {
-		let buildCommand;
-		// let buildCommands: string[];
-
-		const dockerFileExist = await ConfigUtils.doesFileExist(dockerFilePath);
-		if (dockerFileExist) {
-			buildCommand = `docker build --no-cache -f ${dockerFilePath} -t ${imageName} .`;
-			await TerminalUtils.terminalRun(language, buildCommand);
-			// TerminalUtils.runMultilineCommandsOnTerminal(containerName, buildCommands);
-		} else {
-			/* 이부분의 도커 파일이 없을 경우, 처리방법
-                1. 베이스이미지를 사용해서 실행 환경을 구성만 한다.
-                2. 베이스이미지를 기본으로 하는 베이스 도커파일을 사용자 로컬에 작성해준다.
-            */
-			await executeDockerCommand(
-				`docker pull ${baseImages[language]};docker tag ${baseImages[language]} ${imageName}`
-			);
-		}
-	} catch (error) {
-		throw error;
-	} finally {
-		buildStatus.set(imageName, false);
-	}
-}
-
-export async function runContainer(language: string): Promise<void> {
-	if (!(language in baseImages)) {
-		throw new Error(`Unsupported language: ${language}`);
-	}
-
-	const rootPath = ConfigUtils.getRootPath();
-	if (!rootPath) {
-		throw new Error("Unable to determine root path.");
-	}
-
-	let useImage;
-	const imageName = `${language}-dev-image:latest`;
-	const containerName = `${language}-dev-container`;
-	const dockerFilePath = `${rootPath}/${language}.Dockerfile`;
-
-	let imageExists = await executeDockerCommand(
-		DockerCommands.checkImage(imageName)
-	);
-	if (!imageExists) {
-		LogUtils.logWarning(
-			`커스텀 이미지(${language}.Dockerfile)가 존재하지 않습니다.`
-		);
-		imageExists = await executeDockerCommand(
-			DockerCommands.checkImage(baseImages[language])
-		);
-		if (!imageExists) {
-			LogUtils.logWarning(
-				`베이스 이미지(${baseImages[language]})가 존재하지 않습니다.`
-			);
-			throw new Error(
-				`사용 가능한 이미지가 존재하지 않습니다. 먼저 ${language} 이미지를 빌드하세요.`
-			);
-		}
-		useImage = baseImages[language];
-	} else {
-		useImage = imageName;
-	}
-
-	const existingContainerId = await executeDockerCommand(
-		DockerCommands.checkContainer(containerName)
-	);
-	if (existingContainerId) {
-		const isRunning = await executeDockerCommand(
-			`docker inspect -f '{{.State.Running}}' ${containerName}`
-		);
-		if (isRunning.trim() === "true") {
-			console.log(
-				`기존 컨테이너 ${containerName}가 실행 중입니다. 재사용합니다.`
-			);
-			return;
-		}
-
-		console.log(
-			`기존 컨테이너 ${containerName}가 정지 상태입니다. 제거 후 새로 실행합니다.`
-		);
-		await executeDockerCommand(`docker rm -f ${containerName}`);
-	}
-
-	let runCommand;
-	const dockerFileExist = await ConfigUtils.doesFileExist(dockerFilePath);
-
-	const currentDir = getCurrentDirectory();
-	if (!currentDir) {
-		throw new Error("현재 포커스된 파일의 경로를 가져올 수 없습니다.");
-	}
-
-	if (dockerFileExist) {
-		const portOptions = await mapDockerPorts(dockerFilePath);
-		runCommand = `docker run ${portOptions} --name ${containerName} -v ${currentDir}:/app -d ${useImage}`;
-	} else {
-		runCommand = `docker run --name ${containerName} -v ${currentDir}:/app ${baseImages[language]}`;
-	}
-	await TerminalUtils.terminalRun(language, runCommand);
-	LogUtils.logInfo(
-		`컨테이너 실행: ${containerName}, 마운트 경로: ${currentDir}, 이미지: ${useImage}`
-	);
 }
 
 export async function removeContainer(language: string): Promise<void> {
@@ -365,18 +186,6 @@ export async function removeImage(language: string): Promise<void> {
 	});
 }
 
-// ---
-function getCurrentDirectory(): string | undefined {
-	let filePath;
-	const editor = vscode.window.activeTextEditor;
-	if (editor) {
-		filePath = editor.document.uri.fsPath; // 현재 파일의 전체 경로
-	}
-	return filePath
-		? filePath.substring(0, filePath.lastIndexOf("/"))
-		: undefined;
-}
-
 export async function checkDockerAvailability(): Promise<Boolean> {
 	return new Promise((resolve) => {
 		exec("docker --version", (error) => {
@@ -389,7 +198,7 @@ export async function checkDockerAvailability(): Promise<Boolean> {
 	});
 }
 
-export async function checkContainerExists(
+export async function checkContainerExists1(
 	containerName: string
 ): Promise<Boolean> {
 	return new Promise((resolve) => {

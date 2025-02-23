@@ -1,8 +1,8 @@
 {
-	"name": "DevDock",
+	"name": "DevDock-h001",
 	"displayName": "DevDock",
 	"description": "DevDock is a VS Code extension for managing Docker-based development environments.",
-	"publisher": "hwan001",
+	"publisher": "h001",
 	"license": "Apache-2.0",
 	"icon": "images/icon.png",
 	"version": "0.0.1",
@@ -14,13 +14,11 @@
 		"url": "https://github.com/hwan001/DevDock.git"
 	},
 	"categories": [
-		"Docker",
-		"Development Environment"
+		"Other",
+		"Programming Languages"
 	],
 	"activationEvents": [
-		"onCommand:devdock.run",
-		"onCommand:devdock.clean",
-		"onCommand:devdock.openConfig"
+		"onStartupFinished"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -28,10 +26,6 @@
 			"title": "DevDock Settings"
 		},
 		"commands": [
-			{
-				"command": "grainbox.build",
-				"title": "Build Image"
-			},
 			{
 				"command": "devdock.run",
 				"title": "Run"
@@ -47,10 +41,6 @@
 			{
 				"command": "devdock.openConfig",
 				"title": "Open Config"
-			},
-			{
-				"command": "devdock.check",
-				"title": "Check"
 			}
 		],
 		"keybindings": [
@@ -72,11 +62,6 @@
 			{
 				"key": "cmd+shift+alt+o",
 				"command": "devdock.openConfig",
-				"when": "editorTextFocus"
-			},
-			{
-				"key": "cmd+shift+alt+e",
-				"command": "devdock.check",
 				"when": "editorTextFocus"
 			}
 		]

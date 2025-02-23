@@ -125,7 +125,7 @@ export async function loadConfig(configFilePath: string): Promise<Result<any>> {
 	try {
 		// 2) 파일 읽고, JSON 파싱
 		const content = await fsp.readFile(configFilePath, "utf8");
-		const parsed = JSON.parse(content); // 실제로는 Partial<Config> 형식일 수도 있음
+		const parsed = JSON.parse(content);
 
 		// 3) 성공 반환
 		return {

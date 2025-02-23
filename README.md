@@ -26,6 +26,8 @@ DevDock is a VS Code extension for managing Docker-based development environment
 | cmd(ctrl) + shift + alt + o | devdock.openConfig |     Open your config file.      |
 | cmd(ctrl) + shift + alt + e |   devdock.check    |     Check local environment     |
 
+
+
 ## Release Notes
 
 ### 0.0.1

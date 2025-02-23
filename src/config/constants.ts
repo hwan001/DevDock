@@ -15,7 +15,7 @@
  */
 
 export const DEBUG = false;
-export const CONFIG_NAME = "devDockConfig.json";
+export const CONFIG_NAME = "devdockConfig.json";
 export const DEFAULT_CONFIG = {
 	languageMap: {
 		py: "python",
@@ -32,7 +32,7 @@ FROM python:3.10-slim
 WORKDIR /app
 COPY . /app
 
-RUN pip install --no-cache-dir -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "/app/main.py"]
         `.trim(),

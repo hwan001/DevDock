@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import * as vscode from "vscode";
 import { ErrorUtils, ConfigUtils, DockerUtils } from "../utils";
 
-export async function clean(context: vscode.ExtensionContext): Promise<void> {
+export async function clean(): Promise<void> {
 	try {
 		const detectLanguageResult = ConfigUtils.detectLanguage();
 		if (!detectLanguageResult.success) {

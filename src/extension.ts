@@ -16,28 +16,30 @@
 
 import * as vscode from "vscode";
 
-import { run, clean, openConfigFile, check, logs } from "./commands";
-import { LogUtils, ConfigUtils } from "./utils";
+import { run, clean, openConfigFile, logs } from "./commands";
+import { LogUtils, ConfigUtils, DockerUtils, VscodeUtils } from "./utils";
 
 export async function activate(
 	context: vscode.ExtensionContext
 ): Promise<void> {
 	await ConfigUtils.ensureConfigFile(context);
+	const isDockerAvailable = await DockerUtils.checkDockerAvailability();
+	if (isDockerAvailable) {
+		const commands = [
+			{ command: "devdock.run", handler: run },
+			{ command: "devdock.clean", handler: clean },
+			{ command: "devdock.logs", handler: logs },
+			{ command: "devdock.openConfig", handler: openConfigFile },
+		];
 
-	const commands = [
-		{ command: "devdock.run", handler: run },
-		{ command: "devdock.clean", handler: clean },
-        { command: "devdock.logs", handler: logs },
-		{ command: "devdock.openConfig", handler: openConfigFile },
-		{ command: "devdock.check", handler: check },
-	];
-
-	commands.forEach(({ command, handler }) => {
-		context.subscriptions.push(
-			vscode.commands.registerCommand(command, () => handler(context))
-		);
-	});
-
+		commands.forEach(({ command, handler }) => {
+			context.subscriptions.push(
+				vscode.commands.registerCommand(command, () => handler(context))
+			);
+		});
+	} else {
+		VscodeUtils.alertMessage({type:"error", message:"Docker is not installed.\nPlease install Docker and restart VS Code to use DevDock."});
+	}
 	LogUtils.logDebug("DevDock extension is now active.");
 }
 
