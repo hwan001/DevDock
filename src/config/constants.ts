@@ -87,3 +87,8 @@ CMD ["./main"]
         `.trim(),
 	} as Record<string, string>,
 };
+
+export let userConfig: any = {};
+export function setUserConfig(newConfig: any) {
+	userConfig = newConfig;
+}

@@ -16,27 +16,15 @@
 
 import * as vscode from "vscode";
 
-type AlertWithButton = {
+type VscodeAlert = {
 	type: "info" | "warn" | "error";
 	message: string;
-	isButton: true;
-	onConfirm: () => void;
-	onCancel: () => void;
+	buttons?: { label: string; action: () => void }[];
 };
 
-type AlertWithoutButton = {
-	type: "info" | "warn" | "error";
-	message: string;
-	isButton?: false;
-};
-
-// 두 타입을 합친 유니온 타입
-type AlertOptions = AlertWithButton | AlertWithoutButton;
-
-export function alertMessage(options: AlertOptions): void {
+export function alertMessage(options: VscodeAlert): void {
 	let showMessage: Function;
 
-	// 알림 유형에 따라 적절한 함수 선택
 	switch (options.type) {
 		case "info":
 			showMessage = vscode.window.showInformationMessage;
@@ -51,19 +39,17 @@ export function alertMessage(options: AlertOptions): void {
 			throw new Error("Invalid alert type");
 	}
 
-	if (options.isButton) {
-		// 버튼이 있는 경우, onConfirm과 onCancel을 강제 사용
-		showMessage(options.message, "확인", "취소").then(
+	if (options.buttons && options.buttons.length > 0) {
+		const buttonLabels = options.buttons.map((btn) => btn.label);
+		showMessage(options.message, ...buttonLabels).then(
 			(selection: string | undefined) => {
-				if (selection === "확인") {
-					options.onConfirm(); // 확인 버튼 동작 호출
-				} else if (selection === "취소") {
-					options.onCancel(); // 취소 버튼 동작 호출
-				}
+				const selectedButton = options.buttons?.find(
+					(btn) => btn.label === selection
+				);
+				selectedButton?.action();
 			}
 		);
 	} else {
-		// 버튼이 없는 경우
 		showMessage(options.message);
 	}
 }

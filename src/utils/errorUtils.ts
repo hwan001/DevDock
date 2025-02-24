@@ -32,7 +32,7 @@ export function handleError(error: unknown): void {
 		Message = `Unexpected Error: ${errorMessage}`; //\n\nStack Trace:\n${stackTrace}`
 	}
 
-	LogUtils.logError(Message);
+	LogUtils.logMessage("error", Message);
 	VscodeUtils.alertMessage({
 		type: "error",
 		message: Message,

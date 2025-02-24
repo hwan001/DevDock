@@ -38,11 +38,15 @@ export async function activate(
 			);
 		});
 	} else {
-		VscodeUtils.alertMessage({type:"error", message:"Docker is not installed.\nPlease install Docker and restart VS Code to use DevDock."});
+		VscodeUtils.alertMessage({
+			type: "error",
+			message:
+				"Docker is not installed.\nPlease install Docker and restart VS Code to use DevDock.",
+		});
 	}
-	LogUtils.logDebug("DevDock extension is now active.");
+	LogUtils.logMessage("debug", "DevDock extension is now active.");
 }
 
 export function deactivate(): void {
-	LogUtils.logDebug("DevDock extension is now deactivated.");
+	LogUtils.logMessage("debug", "DevDock extension is now deactivated.");
 }

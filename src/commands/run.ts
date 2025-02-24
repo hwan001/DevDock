@@ -14,16 +14,27 @@
  * limitations under the License.
  */
 
+import * as vscode from "vscode";
 import { ConfigUtils, ErrorUtils, DockerUtils } from "../utils";
+import { setUserConfig } from "../config/constants";
 
-export async function run(): Promise<void> {
+export async function run(context: vscode.ExtensionContext): Promise<void> {
 	try {
+		const configFilePath = await ConfigUtils.getConfigFilePath(context);
+		const loadConfigResult = await ConfigUtils.loadConfig(configFilePath);
+		if (!loadConfigResult.success) {
+			throw new Error(loadConfigResult.error);
+		}
+
+		setUserConfig(loadConfigResult.data);
+
 		const detectLanguageResult = ConfigUtils.detectLanguage();
 		if (!detectLanguageResult.success) {
 			throw new Error(detectLanguageResult.error);
 		}
 
 		const language = String(detectLanguageResult.data);
+
 		DockerUtils.run(language);
 	} catch (error) {
 		ErrorUtils.handleError(error);

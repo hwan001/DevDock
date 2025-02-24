@@ -15,23 +15,12 @@
  */
 
 import * as net from "net";
-import * as vscode from "vscode";
 
 import fs from "fs/promises";
-import { exec, spawn } from "child_process";
-import { LogUtils, TerminalUtils, ConfigUtils, VscodeUtils } from ".";
-import { DEFAULT_CONFIG } from "../config/constants";
+import { exec } from "child_process";
+import { TerminalUtils, ConfigUtils, VscodeUtils } from ".";
 
 const buildStatus: Map<string, boolean> = new Map();
-
-const baseImages: Record<string, string> = {
-	python: "python:3.9-slim",
-	node: "node:18-alpine",
-	go: "golang:latest",
-	typescript: "node:18-alpine",
-	java: "openjdk:latest",
-	cpp: "gcc:latest",
-};
 
 export const DockerCommands = {
 	checkImage: (imageName: string) => `docker images -q ${imageName}`,
@@ -51,10 +40,6 @@ export const DockerCommands = {
 };
 
 export async function run(language: string): Promise<void> {
-	if (!(language in DEFAULT_CONFIG.dockerTemplates)) {
-		throw new Error(`Unsupported language: ${language}`);
-	}
-
 	const activeFilePath = ConfigUtils.getActiveFilePath();
 	if (!activeFilePath) {
 		throw new Error("Unable to determine active file path.");
@@ -62,7 +47,7 @@ export async function run(language: string): Promise<void> {
 
 	let Commands: string[] = [];
 	let portOption = "";
-    let volumeOption = "";
+	let volumeOption = "";
 
 	const imageName = `${language}-dev-image:latest`;
 	const containerName = `${language}-dev-container`;
@@ -105,8 +90,8 @@ export async function run(language: string): Promise<void> {
 		);
 
 		portOption = await mapDockerPorts(dockerFilePath);
-        volumeOption = await mapDockerVolumes(dockerFilePath);
-        
+		volumeOption = await mapDockerVolumes(dockerFilePath);
+
 		Commands.push(
 			`docker run ${portOption} ${volumeOption} --name ${containerName} -d ${imageName}`
 		);
@@ -129,7 +114,7 @@ export async function logs(language: string): Promise<void> {
 		TerminalUtils.runMultilineCommandsOnTerminal(containerName, Commands);
 	} catch (error) {
 		throw error;
-    }
+	}
 }
 
 export async function removeContainer(language: string): Promise<void> {
@@ -208,7 +193,6 @@ export async function checkContainerExists1(
 	});
 }
 
-// Dockerfile 파싱
 export async function parseDockerfile(
 	dockerfilePath: string
 ): Promise<{ ports: number[]; volumes: string[] }> {
@@ -303,9 +287,7 @@ export async function mapDockerVolumes(
 	return mappingList.join(" ");
 }
 
-export async function mapDockerPorts(
-    dockerFilePath: string
-): Promise<string> {
+export async function mapDockerPorts(dockerFilePath: string): Promise<string> {
 	const exposedPorts = (await parseDockerfile(dockerFilePath)).ports;
 	if (exposedPorts.length === 0) {
 		return "";

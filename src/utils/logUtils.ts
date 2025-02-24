@@ -29,20 +29,26 @@ export function getCurrentTimestamp(useSystemTime: boolean = false): string {
 	return now.toISOString(); // UTC
 }
 
-export function logDebug(message: string): void {
-	if (DEBUG) {
-		console.log(`[DEBUG][${getCurrentTimestamp(true)}] ${message}`);
+export function logMessage(
+	type: "info" | "warn" | "error" | "debug",
+	message: string
+): void {
+	switch (type) {
+		case "info":
+			console.log(`[INFO][${getCurrentTimestamp()}] ${message}`);
+			break;
+		case "warn":
+			console.warn(`[WARNING][${getCurrentTimestamp()}] ${message}`);
+			break;
+		case "error":
+			console.error(`[ERROR][${getCurrentTimestamp()}] ${message}`);
+			break;
+		case "debug":
+			if (DEBUG) {
+				console.log(`[DEBUG][${getCurrentTimestamp(true)}] ${message}`);
+			}
+			break;
+		default:
+			throw new Error("Invalid alert type");
 	}
-}
-
-export function logInfo(message: string): void {
-	console.log(`[INFO][${getCurrentTimestamp()}] ${message}`);
-}
-
-export function logError(message: string): void {
-	console.error(`[ERROR][${getCurrentTimestamp()}] ${message}`);
-}
-
-export function logWarning(message: string): void {
-	console.warn(`[WARNING][${getCurrentTimestamp()}] ${message}`);
 }

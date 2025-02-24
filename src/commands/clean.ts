@@ -13,16 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { ErrorUtils, ConfigUtils, DockerUtils } from "../utils";
 
-export async function clean(): Promise<void> {
+import * as vscode from "vscode";
+import { ErrorUtils, ConfigUtils, DockerUtils } from "../utils";
+import { setUserConfig } from "../config/constants";
+
+export async function clean(context: vscode.ExtensionContext): Promise<void> {
 	try {
+		const configFilePath = await ConfigUtils.getConfigFilePath(context);
+		const loadConfigResult = await ConfigUtils.loadConfig(configFilePath);
+		if (!loadConfigResult.success) {
+			throw new Error(loadConfigResult.error);
+		}
+
+		setUserConfig(loadConfigResult.data);
+
 		const detectLanguageResult = ConfigUtils.detectLanguage();
 		if (!detectLanguageResult.success) {
 			throw new Error(detectLanguageResult.error);
 		}
 
 		const language = String(detectLanguageResult.data);
+
 		DockerUtils.removeContainer(language);
 		DockerUtils.removeImage(language);
 	} catch (error) {

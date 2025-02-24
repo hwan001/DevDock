@@ -20,7 +20,7 @@ import * as fsp from "fs/promises";
 
 import { LogUtils, VscodeUtils } from ".";
 import { Result } from "../types/gbInterface";
-import { CONFIG_NAME, DEFAULT_CONFIG } from "../config/constants";
+import { CONFIG_NAME, userConfig } from "../config/constants";
 
 export async function doesFileExist(filePath: string): Promise<boolean> {
 	try {
@@ -28,6 +28,106 @@ export async function doesFileExist(filePath: string): Promise<boolean> {
 		return true;
 	} catch {
 		return false;
+	}
+}
+
+export async function getConfigFilePath(
+	context: vscode.ExtensionContext
+): Promise<string> {
+	const configDir = context.globalStorageUri.fsPath;
+
+	try {
+		await fsp.mkdir(configDir, { recursive: true });
+	} catch (error) {
+		throw error;
+	}
+
+	return String(path.join(configDir, CONFIG_NAME));
+}
+
+export function detectLanguage(): Result<string> {
+	const activeEditor = vscode.window.activeTextEditor;
+	if (!activeEditor) {
+		return {
+			success: false,
+			error: "No active file selected.",
+		};
+	}
+
+	const fileExtension = activeEditor.document.fileName.split(".").pop();
+	if (!fileExtension) {
+		return {
+			success: false,
+			error: "Failed to detect file extension.",
+		};
+	}
+
+	const language = userConfig.languageMap[fileExtension];
+	if (!(language in userConfig.dockerTemplates)) {
+		return {
+			success: false,
+			error: `No template found for '${language} (.${fileExtension})'`,
+		};
+	}
+
+	return {
+		success: true,
+		data: language,
+	};
+}
+
+export function getRootPath(): string | null {
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		vscode.window.showErrorMessage(
+			"No workspace folder is open. Please open a folder or workspace to proceed."
+		);
+		return null;
+	}
+	return workspaceFolders[0].uri.fsPath;
+}
+
+export function getActiveFilePath(): string | null {
+	const activeEditor = vscode.window.activeTextEditor;
+
+	if (activeEditor) {
+		const document = activeEditor.document;
+		const filePath = document.uri.fsPath;
+		const directoryPath = path.dirname(filePath);
+		return directoryPath;
+	} else {
+		VscodeUtils.alertMessage({
+			type: "warn",
+			message: "활성화된 파일이 없습니다.",
+		});
+		return null;
+	}
+}
+
+export async function makeDockerfile(language: string): Promise<void> {
+	const template = userConfig.dockerTemplates[language];
+	if (!template) {
+		VscodeUtils.alertMessage({
+			type: "error",
+			message: `"${language}"에 대한 Dockerfile 템플릿이 없습니다.`,
+		});
+		return;
+	}
+
+	const directoryPath = getActiveFilePath();
+	const dockerfilePath = `${directoryPath}/${language}.Dockerfile`;
+
+	try {
+		await fsp.writeFile(dockerfilePath, template, { encoding: "utf8" });
+		VscodeUtils.alertMessage({
+			type: "info",
+			message: `Dockerfile 생성 완료: ${dockerfilePath}`,
+		});
+	} catch (error) {
+		VscodeUtils.alertMessage({
+			type: "error",
+			message: `Dockerfile 생성 중 오류 발생`,
+		});
 	}
 }
 
@@ -103,7 +203,7 @@ export async function saveConfig(
 ): Promise<void> {
 	const content = JSON.stringify(config, null, 4);
 	await atomicWriteConfig(configFilePath, content);
-	LogUtils.logDebug(`Config saved to ${configFilePath}`);
+	LogUtils.logMessage("debug", `Config saved to ${configFilePath}`);
 }
 
 /**
@@ -117,7 +217,7 @@ export async function loadConfig(configFilePath: string): Promise<Result<any>> {
 		// 파일이 없으면 실패 처리 + 기본값 반환
 		return {
 			success: false,
-			data: DEFAULT_CONFIG,
+			data: userConfig,
 			error: `Config file not found. Returning default config.`,
 		};
 	}
@@ -136,64 +236,10 @@ export async function loadConfig(configFilePath: string): Promise<Result<any>> {
 		// 4) 파싱/읽기 실패 시, 기본값 + 에러 메시지
 		return {
 			success: false,
-			data: DEFAULT_CONFIG,
+			data: userConfig,
 			error: `Failed to read or parse config file. \n${error}`,
 		};
 	}
-}
-
-/**
- * Extension 구동 시점에 Config파일 경로 설정 (비동기)
- * - context.globalStorageUri를 통해 안전한 경로 사용
- */
-export async function getConfigFilePath(
-	context: vscode.ExtensionContext
-): Promise<string> {
-	const configDir = context.globalStorageUri.fsPath;
-
-	try {
-		await fsp.mkdir(configDir, { recursive: true });
-	} catch (error) {
-		throw error;
-	}
-
-	return String(path.join(configDir, CONFIG_NAME));
-}
-
-/**
- * 언어 감지 함수
- */
-export function detectLanguage(): Result<string> {
-	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor) {
-		return {
-			success: false,
-			error: "No active file selected.",
-		};
-	}
-
-	const fileExtension = activeEditor.document.fileName.split(".").pop();
-	if (!fileExtension) {
-		return {
-			success: false,
-			error: "Failed to detect file extension.",
-		};
-	}
-
-	const languageMap = DEFAULT_CONFIG.languageMap;
-
-	if (languageMap[fileExtension]) {
-		const language = languageMap[fileExtension];
-		return {
-			success: true,
-			data: language,
-		};
-	}
-
-	return {
-		success: false,
-		error: `Unsupported file type: .${fileExtension}`,
-	};
 }
 
 /**
@@ -211,89 +257,18 @@ export async function ensureConfigFile(context: vscode.ExtensionContext) {
 		}
 
 		const userConfig = loadConfigResult.data;
-		const mergedConfig = mergeConfigsIterative(userConfig, DEFAULT_CONFIG);
+		const mergedConfig = mergeConfigsIterative(userConfig, userConfig);
 
 		await saveConfig(mergedConfig, configFilePath);
-		LogUtils.logDebug(
+		LogUtils.logMessage(
+			"debug",
 			`Merged config: ${JSON.stringify(mergedConfig, null, 4)}`
 		);
 	} catch (error) {
-		await saveConfig(DEFAULT_CONFIG, configFilePath);
-		LogUtils.logError(
-			`Failed to read or parse config file. Overwriting with default config.`
+		await saveConfig(userConfig, configFilePath);
+		LogUtils.logMessage(
+			"error",
+			`Failed to read or parse config file.\nOverwriting with default config.`
 		);
-	}
-}
-
-export function getRootPath(): string | null {
-	const workspaceFolders = vscode.workspace.workspaceFolders;
-	if (!workspaceFolders || workspaceFolders.length === 0) {
-		vscode.window.showErrorMessage(
-			"No workspace folder is open. Please open a folder or workspace to proceed."
-		);
-		return null;
-	}
-	return workspaceFolders[0].uri.fsPath;
-}
-
-export function getActiveFilePath(): string | null {
-	const activeEditor = vscode.window.activeTextEditor;
-
-	if (activeEditor) {
-		const document = activeEditor.document;
-		const filePath = document.uri.fsPath;
-		const directoryPath = path.dirname(filePath);
-		return directoryPath;
-	} else {
-		VscodeUtils.alertMessage({
-			type: "warn",
-			message: "활성화된 파일이 없습니다.",
-		});
-		return null;
-	}
-}
-
-export async function makeDockerfile(language: string): Promise<void> {
-	const template = DEFAULT_CONFIG.dockerTemplates[language];
-	if (!template) {
-		VscodeUtils.alertMessage({
-			type: "error",
-			message: `"${language}"에 대한 Dockerfile 템플릿이 없습니다.`,
-		});
-		return;
-	}
-
-	const directoryPath = getActiveFilePath();
-	const dockerfilePath = `${directoryPath}/${language}.Dockerfile`;
-
-	try {
-		const fileExists = await fsp
-			.access(dockerfilePath)
-			.then(() => true)
-			.catch(() => false);
-
-		if (fileExists) {
-			const overwrite = await vscode.window.showQuickPick(["Yes", "No"], {
-				placeHolder: `Dockerfile이 이미 존재합니다. 덮어쓰시겠습니까?`,
-			});
-			if (overwrite !== "Yes") {
-				VscodeUtils.alertMessage({
-					type: "info",
-					message: "Dockerfile 생성이 취소되었습니다.",
-				});
-				return;
-			}
-		}
-
-		await fsp.writeFile(dockerfilePath, template, { encoding: "utf8" });
-		VscodeUtils.alertMessage({
-			type: "info",
-			message: `Dockerfile 생성 완료: ${dockerfilePath}`,
-		});
-	} catch (error) {
-		VscodeUtils.alertMessage({
-			type: "error",
-			message: `Dockerfile 생성 중 오류 발생`,
-		});
 	}
 }
