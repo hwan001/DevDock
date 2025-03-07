@@ -107,11 +107,7 @@ export function getActiveFilePath(): string | null {
 export async function makeDockerfile(language: string): Promise<void> {
 	const template = userConfig.dockerTemplates[language];
 	if (!template) {
-		VscodeUtils.alertMessage({
-			type: "error",
-			message: `"${language}"에 대한 Dockerfile 템플릿이 없습니다.`,
-		});
-		return;
+		throw new Error(`"${language}"에 대한 Dockerfile 템플릿이 없습니다.`);
 	}
 
 	const directoryPath = getActiveFilePath();
@@ -124,10 +120,7 @@ export async function makeDockerfile(language: string): Promise<void> {
 			message: `Dockerfile 생성 완료: ${dockerfilePath}`,
 		});
 	} catch (error) {
-		VscodeUtils.alertMessage({
-			type: "error",
-			message: `Dockerfile 생성 중 오류 발생`,
-		});
+		throw new Error(`Dockerfile 생성 중 오류 발생: ${error}`);
 	}
 }
 
@@ -177,24 +170,6 @@ export function mergeConfigsIterative(userObj: any, defaultObj: any): any {
 }
 
 /**
- * 원자적(Atomic) 파일 쓰기
- * 1) 임시 파일에 먼저 write
- * 2) rename으로 최종 파일에 덮어쓰기
- */
-export async function atomicWriteConfig(
-	filePath: string,
-	content: string
-): Promise<void> {
-	const tempFilePath = filePath + ".tmp";
-
-	// 임시 파일에 먼저 쓴 뒤
-	await fsp.writeFile(tempFilePath, content, "utf8");
-
-	// rename으로 최종 파일 교체
-	await fsp.rename(tempFilePath, filePath);
-}
-
-/**
  * config.ts의 DEFAULT_CONFIG를 파일에 저장 (비동기, Atomic)
  */
 export async function saveConfig(
@@ -204,6 +179,20 @@ export async function saveConfig(
 	const content = JSON.stringify(config, null, 4);
 	await atomicWriteConfig(configFilePath, content);
 	LogUtils.logMessage("debug", `Config saved to ${configFilePath}`);
+}
+
+export async function atomicWriteConfig(
+	filePath: string,
+	content: string
+): Promise<void> {
+	const tempFilePath = filePath + ".tmp";
+
+	try {
+		await fsp.writeFile(tempFilePath, content, "utf8");
+		await fsp.rename(tempFilePath, filePath);
+	} catch (error: any) {
+		throw new Error(`[atomicWriteConfig] Failed to save config to ${filePath}: ${error.message}`);
+	}
 }
 
 /**
@@ -218,7 +207,7 @@ export async function loadConfig(configFilePath: string): Promise<Result<any>> {
 		return {
 			success: false,
 			data: userConfig,
-			error: `Config file not found. Returning default config.`,
+			error: `[loadConfig] Config file not found. Returning default config.`,
 		};
 	}
 
@@ -232,12 +221,11 @@ export async function loadConfig(configFilePath: string): Promise<Result<any>> {
 			success: true,
 			data: parsed,
 		};
-	} catch (error: any) {
-		// 4) 파싱/읽기 실패 시, 기본값 + 에러 메시지
+	} catch (error) {
 		return {
 			success: false,
 			data: userConfig,
-			error: `Failed to read or parse config file. \n${error}`,
+			error: `[loadConfig] ${error}`,
 		};
 	}
 }
@@ -266,8 +254,7 @@ export async function ensureConfigFile(context: vscode.ExtensionContext) {
 		);
 	} catch (error) {
 		await saveConfig(userConfig, configFilePath);
-		LogUtils.logMessage(
-			"error",
+		throw new Error(
 			`Failed to read or parse config file.\nOverwriting with default config.`
 		);
 	}
