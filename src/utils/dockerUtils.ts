@@ -52,8 +52,14 @@ export async function run(language: string): Promise<void> {
 	const imageName = `${language}-dev-image:latest`;
 	const containerName = `${language}-dev-container`;
 	const dockerFilePath = `${activeFilePath}/${language}.Dockerfile`;
-	const exec = require("child_process").execSync;
+	
 
+	if (buildStatus.get(imageName)) {
+		throw new Error(`이미 ${imageName} 빌드 작업이 진행 중입니다.`);
+	}
+	buildStatus.set(imageName, true);
+
+	const exec = require("child_process").execSync;
 	const containers: string[] = exec(
 		DockerCommands.removeContainers(containerName)
 	)
@@ -66,22 +72,9 @@ export async function run(language: string): Promise<void> {
 		}
 	});
 
-	if (buildStatus.get(imageName)) {
-		VscodeUtils.alertMessage({
-			type: "warn",
-			message: `이미 ${imageName} 빌드 작업이 진행 중입니다.`,
-		});
-		return;
-	}
-	buildStatus.set(imageName, true);
-
 	try {
 		const dockerFileExist = await ConfigUtils.doesFileExist(dockerFilePath);
 		if (!dockerFileExist) {
-			VscodeUtils.alertMessage({
-				type: "warn",
-				message: `Not found ${dockerFilePath}`,
-			});
 			ConfigUtils.makeDockerfile(language);
 		}
 

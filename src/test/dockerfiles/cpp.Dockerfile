@@ -12,8 +12,10 @@ EXPOSE 443
 
 VOLUME /data
 VOLUME /data /tmp
+VOLUME /app/data
+
 VOLUME [ "/data" ]
 VOLUME [ "/data", "/tmp2" ]
 
 
-CMD ["python3", "main.py"]
+CMD ["main"]
