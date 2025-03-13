@@ -5,7 +5,7 @@
 	"publisher": "h001",
 	"license": "Apache-2.0",
 	"icon": "images/icon.png",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"engines": {
 		"vscode": "^1.97.0"
 	},

@@ -17,63 +17,48 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fsp from "fs/promises";
+import * as fs from "fs";
+
 
 import { LogUtils, VscodeUtils } from ".";
-import { Result } from "../types/gbInterface";
-import { CONFIG_NAME, userConfig } from "../config/constants";
+import {
+	DEFAULT_CONFIG,
+	CONFIG_NAME,
+	userConfig,
+	setUserConfig
+} from "../config/constants";
 
-export async function doesFileExist(filePath: string): Promise<boolean> {
-	try {
-		await fsp.access(filePath);
-		return true;
-	} catch {
-		return false;
-	}
+
+export function doesFileExist(filePath: string): boolean {
+	return fs.existsSync(filePath);
 }
+
 
 export async function getConfigFilePath(
 	context: vscode.ExtensionContext
 ): Promise<string> {
 	const configDir = context.globalStorageUri.fsPath;
-
-	try {
-		await fsp.mkdir(configDir, { recursive: true });
-	} catch (error) {
-		throw error;
-	}
-
-	return String(path.join(configDir, CONFIG_NAME));
+	await fsp.mkdir(configDir, { recursive: true });
+	return path.join(configDir, CONFIG_NAME);
 }
 
-export function detectLanguage(): Result<string> {
+export function detectLanguage(): string {
 	const activeEditor = vscode.window.activeTextEditor;
 	if (!activeEditor) {
-		return {
-			success: false,
-			error: "No active file selected.",
-		};
+		throw new Error(`No active file selected.`);
 	}
 
 	const fileExtension = activeEditor.document.fileName.split(".").pop();
 	if (!fileExtension) {
-		return {
-			success: false,
-			error: "Failed to detect file extension.",
-		};
+		throw new Error(`Failed to detect file extension.`);
 	}
 
 	const language = userConfig.languageMap[fileExtension];
 	if (!(language in userConfig.dockerTemplates)) {
-		return {
-			success: false,
-			error: `No template found for '${language} (.${fileExtension})'`,
-		};
+		throw new Error(`No template found for '${language} (.${fileExtension})'`);
 	}
 
-	return {
-		success: true,
-		data: language,
-	};
+	return language;
 }
 
 export function getRootPath(): string | null {
@@ -87,21 +72,18 @@ export function getRootPath(): string | null {
 	return workspaceFolders[0].uri.fsPath;
 }
 
+
 export function getActiveFilePath(): string | null {
 	const activeEditor = vscode.window.activeTextEditor;
-
-	if (activeEditor) {
-		const document = activeEditor.document;
-		const filePath = document.uri.fsPath;
-		const directoryPath = path.dirname(filePath);
-		return directoryPath;
-	} else {
+	if (!activeEditor) {
 		VscodeUtils.alertMessage({
 			type: "warn",
 			message: "활성화된 파일이 없습니다.",
 		});
 		return null;
 	}
+
+	return path.dirname(activeEditor.document.uri.fsPath);
 }
 
 export async function makeDockerfile(language: string): Promise<void> {
@@ -113,15 +95,12 @@ export async function makeDockerfile(language: string): Promise<void> {
 	const directoryPath = getActiveFilePath();
 	const dockerfilePath = `${directoryPath}/${language}.Dockerfile`;
 
-	try {
-		await fsp.writeFile(dockerfilePath, template, { encoding: "utf8" });
-		VscodeUtils.alertMessage({
-			type: "info",
-			message: `Dockerfile 생성 완료: ${dockerfilePath}`,
-		});
-	} catch (error) {
-		throw new Error(`Dockerfile 생성 중 오류 발생: ${error}`);
-	}
+	await fsp.writeFile(dockerfilePath, template, { encoding: "utf8" });
+
+	VscodeUtils.alertMessage({
+		type: "info",
+		message: `Dockerfile 생성 완료: ${dockerfilePath}`,
+	});
 }
 
 /**
@@ -191,71 +170,61 @@ export async function atomicWriteConfig(
 		await fsp.writeFile(tempFilePath, content, "utf8");
 		await fsp.rename(tempFilePath, filePath);
 	} catch (error: any) {
-		throw new Error(`[atomicWriteConfig] Failed to save config to ${filePath}: ${error.message}`);
+		throw new Error(
+			`[atomicWriteConfig] Failed to save config to ${filePath}: ${error.message}`
+		);
 	}
 }
+
 
 /**
  * 확장 경로에 저장된 config.json을 로드하여 JS 객체로 반환
  * 파일이 없거나 에러가 나면 DEFAULT_CONFIG 반환
  */
-export async function loadConfig(configFilePath: string): Promise<Result<any>> {
-	// 1) 파일 존재 여부 확인
-	const fileExists = await doesFileExist(configFilePath);
-	if (!fileExists) {
-		// 파일이 없으면 실패 처리 + 기본값 반환
-		return {
-			success: false,
-			data: userConfig,
-			error: `[loadConfig] Config file not found. Returning default config.`,
-		};
-	}
+export async function loadConfig(configFilePath: string): Promise<any> {
+    const fileExists = await doesFileExist(configFilePath);
+    if (!fileExists) {
+        console.warn(`[loadConfig] Config file not found. Returning default config.`);
+        return { success: false, data: DEFAULT_CONFIG }; // 파일이 없으면 기본 설정 반환
+    }
 
-	try {
-		// 2) 파일 읽고, JSON 파싱
-		const content = await fsp.readFile(configFilePath, "utf8");
-		const parsed = JSON.parse(content);
-
-		// 3) 성공 반환
-		return {
-			success: true,
-			data: parsed,
-		};
-	} catch (error) {
-		return {
-			success: false,
-			data: userConfig,
-			error: `[loadConfig] ${error}`,
-		};
-	}
+    try {
+        const content = await fsp.readFile(configFilePath, "utf8");
+        const parsed = JSON.parse(content);
+        return { success: true, data: parsed }; // 성공적으로 읽었으면 JSON 반환
+    } catch (error) {
+        console.error(`[loadConfig] Failed to parse config: ${error}`);
+        return { success: false, data: DEFAULT_CONFIG }; // 파싱 에러 시 기본 설정 반환
+    }
 }
 
-/**
- * Extension 초기화 시
- * 1) config 파일이 존재하면 로딩하여 userConfig로 얻음
- * 2) DEFAULT_CONFIG와 병합 (스택 기반 머지 사용)
- * 3) 병합 결과를 Atomic 방식으로 최종 저장
- */
 export async function ensureConfigFile(context: vscode.ExtensionContext) {
-	const configFilePath = await getConfigFilePath(context);
-	try {
-		const loadConfigResult = await loadConfig(configFilePath);
-		if (!loadConfigResult.success) {
-			throw new Error(loadConfigResult.error);
-		}
+    const configFilePath = await getConfigFilePath(context);
+    try {
+        const loadConfigResult = await loadConfig(configFilePath);
 
-		const userConfig = loadConfigResult.data;
-		const mergedConfig = mergeConfigsIterative(userConfig, userConfig);
+        const userConfig = loadConfigResult.data;
+        const mergedConfig = mergeConfigsIterative(DEFAULT_CONFIG, userConfig); // 병합 시 기본값 우선 적용
 
-		await saveConfig(mergedConfig, configFilePath);
-		LogUtils.logMessage(
-			"debug",
-			`Merged config: ${JSON.stringify(mergedConfig, null, 4)}`
-		);
-	} catch (error) {
-		await saveConfig(userConfig, configFilePath);
-		throw new Error(
-			`Failed to read or parse config file.\nOverwriting with default config.`
-		);
-	}
+        await saveConfig(mergedConfig, configFilePath);
+        LogUtils.logMessage("debug", `Merged config: ${JSON.stringify(mergedConfig, null, 4)}`);
+    } catch (error) {
+        console.error(`[ensureConfigFile] Error: ${error}`);
+        const defaultConfig = { ...DEFAULT_CONFIG };
+        await saveConfig(defaultConfig, configFilePath);
+    }
+}
+
+export async function updateUserConfig(context: vscode.ExtensionContext) {
+    const configFilePath = await getConfigFilePath(context);
+    console.log("Config File Path:", configFilePath);
+
+    const loadConfigResult = await loadConfig(configFilePath);
+    console.log("Load Config Result:", loadConfigResult);
+
+    if (!loadConfigResult.success) {
+        console.error("Failed to load config. Using default settings.");
+    }
+
+    setUserConfig(loadConfigResult.data);
 }
